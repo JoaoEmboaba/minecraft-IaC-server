@@ -1,0 +1,97 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation to create a VPC, EC2 and Security Group resources to host a minecraft server
+
+Resources:
+  minecraftServerVpc:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: '10.0.0.0/16'
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: minecraft-server-vpc
+
+  minecraftSubnetVpc:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref minecraftServerVpc
+      CidrBlock: '10.0.1.0/24'
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: minecraft-subnet-vpc
+
+  minecraftServerVpcIgw:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Name
+          Value: minecraft-server-vpc-igw
+
+  AttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref minecraftServerVpc
+      InternetGatewayId: !Ref minecraftServerVpcIgw
+
+  minecraftServerRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref minecraftServerVpc
+      Tags:
+        - Key: Name
+          Value: minecraft-server-route-table
+
+  minecraftServerRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref minecraftServerRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId: !Ref minecraftServerVpcIgw
+
+  minecraftSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref minecraftSubnetVpc
+      RouteTableId: !Ref minecraftServerRouteTable
+
+  mineServer:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: t3.2xlarge
+      KeyName: mine-server-ssh-key
+      ImageId: ami-04b4f1a9cf54c11d0
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: '0'
+          SubnetId: !Ref minecraftSubnetVpc
+          GroupSet:
+            - !Ref minecraftServerSg
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            apt-get update -y
+            apt-get install -y docker.io
+            systemctl start docker
+            systemctl enable docker
+            mkdir -p /server
+            cd /server
+            docker pull itzg/minecraft-server
+            docker run -d -p 25565:25565 --name minecraft-server itzg/minecraft-server
+
+  minecraftServerSg:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Enable SSH and TCP access to authorized IDs
+      VpcId: !Ref minecraftServerVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 201.67.220.120/32
+        - IpProtocol: tcp
+          FromPort: 25565
+          ToPort: 25565
+          CidrIp: 201.67.220.120/32
