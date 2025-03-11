@@ -90,8 +90,8 @@ Resources:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: 201.67.220.120/32
+          CidrIp: # blocos de IPs permitidos
         - IpProtocol: tcp
           FromPort: 25565
           ToPort: 25565
-          CidrIp: 201.67.220.120/32
+          CidrIp: # blocos de IPs permitidos
